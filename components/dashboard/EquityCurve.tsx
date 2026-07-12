@@ -1,8 +1,9 @@
-import type { EquityPoint } from "@/lib/stats";
+import type { DrawdownStats, EquityPoint } from "@/lib/stats";
 
 interface Props {
   points: EquityPoint[];
   startingBalance: number;
+  drawdown?: DrawdownStats;
 }
 
 const WIDTH = 800;
@@ -10,7 +11,7 @@ const HEIGHT = 260;
 const PAD_X = 10;
 const PAD_Y = 24;
 
-export default function EquityCurve({ points, startingBalance }: Props) {
+export default function EquityCurve({ points, startingBalance, drawdown }: Props) {
   const series = [
     { balance: startingBalance, result: "start", pnl: 0, date: "", tradeId: "start" },
     ...points,
@@ -36,6 +37,11 @@ export default function EquityCurve({ points, startingBalance }: Props) {
   const isUp = finalBalance >= startingBalance;
   const strokeColor = isUp ? "#22c55e" : "#ef4444";
 
+  const ddPeakCoord = drawdown?.hasDrawdown ? coords[drawdown.peakIndex] : null;
+  const ddTroughCoord = drawdown?.hasDrawdown ? coords[drawdown.troughIndex] : null;
+  const ddRectX = ddPeakCoord && ddTroughCoord ? Math.min(ddPeakCoord.x, ddTroughCoord.x) : 0;
+  const ddRectWidth = ddPeakCoord && ddTroughCoord ? Math.max(2, Math.abs(ddTroughCoord.x - ddPeakCoord.x)) : 0;
+
   return (
     <div className="glass-card h-full p-5">
       <div className="mb-4 flex items-center justify-between">
@@ -56,6 +62,29 @@ export default function EquityCurve({ points, startingBalance }: Props) {
             <stop offset="100%" stopColor={strokeColor} stopOpacity="0" />
           </linearGradient>
         </defs>
+        {ddPeakCoord && ddTroughCoord && drawdown && (
+          <>
+            <rect
+              x={ddRectX}
+              y={0}
+              width={ddRectWidth}
+              height={HEIGHT - PAD_Y}
+              fill="#ef4444"
+              fillOpacity={0.08}
+            />
+            <text
+              x={ddRectX + ddRectWidth / 2}
+              y={16}
+              textAnchor="middle"
+              className="font-mono"
+              fontSize={11}
+              fontWeight={600}
+              fill="#ef4444"
+            >
+              -{drawdown.maxDrawdownPct.toFixed(1)}%
+            </text>
+          </>
+        )}
         <path d={areaPath} fill="url(#equity-fill)" stroke="none" />
         <path d={linePath} fill="none" stroke={strokeColor} strokeWidth={2} />
         {coords.slice(1).map((c, i) => (
@@ -70,6 +99,20 @@ export default function EquityCurve({ points, startingBalance }: Props) {
           />
         ))}
       </svg>
+      <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-slate-400">
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2 w-2 rounded-full bg-win" />
+          Winning trade
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2 w-2 rounded-full bg-loss" />
+          Losing trade
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2 w-3 rounded-sm bg-loss/20" />
+          Drawdown period
+        </span>
+      </div>
     </div>
   );
 }

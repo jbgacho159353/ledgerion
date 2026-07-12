@@ -1,7 +1,14 @@
 import type { SerializedTrade } from "@/lib/serialize";
 import { groupBySetup, groupBySession, groupByPair, computeTradeStats } from "@/lib/stats";
 
-export type InsightAction = "CUT" | "DOUBLE DOWN" | "REWORK" | "MAINTAIN";
+export type InsightAction =
+  | "CUT"
+  | "DOUBLE DOWN"
+  | "REWORK"
+  | "MAINTAIN"
+  | "COMING SOON"
+  | "HEALTHY RECOVERY"
+  | "MONITOR";
 
 export interface Insight {
   emoji: string;

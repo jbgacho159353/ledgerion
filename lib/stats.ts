@@ -269,3 +269,130 @@ export function buildEquityCurve(trades: SerializedTrade[], startingBalance: num
     };
   });
 }
+
+export interface DrawdownStats {
+  /** False when equity has only ever gone up (no point below its running peak). */
+  hasDrawdown: boolean;
+  maxDrawdownPct: number;
+  maxDrawdownAmount: number;
+  peakBalance: number;
+  peakDate: string;
+  /** Index into the same [starting-balance, ...equityPoints] series EquityCurve renders. */
+  peakIndex: number;
+  troughBalance: number;
+  troughDate: string;
+  troughIndex: number;
+  /** Whether equity made a new all-time high (above peakBalance) after the trough. */
+  recovered: boolean;
+  recoveryDate: string | null;
+  recoveryDays: number | null;
+  /** Days since the trough, only set while still unrecovered. */
+  ongoingDays: number | null;
+  /** True when the most recent equity point is at (or above) the all-time high. */
+  isCurrentlyAtHigh: boolean;
+}
+
+function daysBetween(fromIso: string, toIso: string): number {
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
+  return Math.round((new Date(toIso).getTime() - new Date(fromIso).getTime()) / MS_PER_DAY);
+}
+
+/** Computes the deepest peak-to-trough drawdown from an equity series already built by buildEquityCurve. */
+export function computeMaxDrawdown(equityPoints: EquityPoint[], startingBalance: number): DrawdownStats {
+  const series = [
+    { date: equityPoints[0]?.date ?? "", balance: startingBalance },
+    ...equityPoints.map((p) => ({ date: p.date, balance: p.balance })),
+  ];
+
+  let runningPeak = series[0].balance;
+  let runningPeakDate = series[0].date;
+  let runningPeakIndex = 0;
+
+  let maxDDPct = 0;
+  let maxDDAmount = 0;
+  let ddPeakBalance = series[0].balance;
+  let ddPeakDate = series[0].date;
+  let ddPeakIndex = 0;
+  let ddTroughBalance = series[0].balance;
+  let ddTroughDate = series[0].date;
+  let ddTroughIndex = 0;
+
+  for (let i = 1; i < series.length; i++) {
+    const point = series[i];
+    if (point.balance > runningPeak) {
+      runningPeak = point.balance;
+      runningPeakDate = point.date;
+      runningPeakIndex = i;
+    }
+    const ddPct = runningPeak > 0 ? ((runningPeak - point.balance) / runningPeak) * 100 : 0;
+    if (ddPct > maxDDPct) {
+      maxDDPct = ddPct;
+      maxDDAmount = round2(runningPeak - point.balance);
+      ddPeakBalance = runningPeak;
+      ddPeakDate = runningPeakDate;
+      ddPeakIndex = runningPeakIndex;
+      ddTroughBalance = point.balance;
+      ddTroughDate = point.date;
+      ddTroughIndex = i;
+    }
+  }
+
+  const allTimeHigh = Math.max(...series.map((p) => p.balance));
+  const currentBalance = series[series.length - 1].balance;
+  const isCurrentlyAtHigh = currentBalance >= allTimeHigh;
+
+  if (maxDDPct <= 0) {
+    return {
+      hasDrawdown: false,
+      maxDrawdownPct: 0,
+      maxDrawdownAmount: 0,
+      peakBalance: runningPeak,
+      peakDate: runningPeakDate,
+      peakIndex: runningPeakIndex,
+      troughBalance: runningPeak,
+      troughDate: runningPeakDate,
+      troughIndex: runningPeakIndex,
+      recovered: true,
+      recoveryDate: null,
+      recoveryDays: null,
+      ongoingDays: null,
+      isCurrentlyAtHigh: true,
+    };
+  }
+
+  let recovered = false;
+  let recoveryDate: string | null = null;
+  let recoveryDays: number | null = null;
+  let ongoingDays: number | null = null;
+
+  for (let i = ddTroughIndex + 1; i < series.length; i++) {
+    if (series[i].balance > ddPeakBalance) {
+      recovered = true;
+      recoveryDate = series[i].date;
+      recoveryDays = daysBetween(ddTroughDate, recoveryDate);
+      break;
+    }
+  }
+
+  if (!recovered) {
+    const today = new Date().toISOString().slice(0, 10);
+    ongoingDays = Math.max(0, daysBetween(ddTroughDate, today));
+  }
+
+  return {
+    hasDrawdown: true,
+    maxDrawdownPct: round2(maxDDPct),
+    maxDrawdownAmount: maxDDAmount,
+    peakBalance: ddPeakBalance,
+    peakDate: ddPeakDate,
+    peakIndex: ddPeakIndex,
+    troughBalance: ddTroughBalance,
+    troughDate: ddTroughDate,
+    troughIndex: ddTroughIndex,
+    recovered,
+    recoveryDate,
+    recoveryDays,
+    ongoingDays,
+    isCurrentlyAtHigh,
+  };
+}

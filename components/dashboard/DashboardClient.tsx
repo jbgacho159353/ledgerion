@@ -5,20 +5,31 @@ import {
   groupBySetup,
   groupBySession,
   buildEquityCurve,
+  computeMaxDrawdown,
   calculateStreak,
   buildRecentTrendSeries,
 } from "@/lib/stats";
-import { generateInsights } from "@/lib/insights";
+import { generateInsights, type Insight } from "@/lib/insights";
 import { formatMoney, formatPercent, formatR, formatCurrency } from "@/lib/format";
 import KpiCard from "@/components/KpiCard";
 import Sparkline from "@/components/Sparkline";
 import EquityCurve from "./EquityCurve";
+import MaxDrawdownCard from "./MaxDrawdownCard";
 import CalendarHeatmap from "./CalendarHeatmap";
 import WinLossDonut from "./WinLossDonut";
 import PairPerformanceBars from "./PairPerformanceBars";
 import SetupPerformanceGrid from "./SetupPerformanceGrid";
 import SessionBreakdown from "./SessionBreakdown";
 import InsightsGrid from "./InsightsGrid";
+
+function formatDrawdownDate(iso: string): string {
+  if (!iso) return "from your starting balance";
+  return `starting ${new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })}`;
+}
 
 interface Props {
   trades: SerializedTrade[];
@@ -31,9 +42,46 @@ export default function DashboardClient({ trades, startingBalance }: Props) {
   const setupData = groupBySetup(trades);
   const sessionData = groupBySession(trades);
   const equityPoints = buildEquityCurve(trades, startingBalance);
+  const drawdown = computeMaxDrawdown(equityPoints, startingBalance);
   const insights = generateInsights(trades);
   const streak = calculateStreak(trades);
   const trend = buildRecentTrendSeries(trades, 7);
+
+  const extraInsights: Insight[] = [
+    {
+      emoji: "🎭",
+      title: "Track your trade psychology",
+      description:
+        "Once you start tagging trades (e.g. 'FOMO entry', 'Textbook', 'Revenge trade') in a future update, this card will show you which behavioral patterns actually correlate with wins and losses.",
+      action: "COMING SOON",
+    },
+  ];
+
+  if (drawdown.hasDrawdown) {
+    if (drawdown.recovered && drawdown.recoveryDays != null) {
+      extraInsights.push({
+        emoji: "📉",
+        title: `Recovered from your ${drawdown.maxDrawdownPct.toFixed(1)}% drawdown fast`,
+        description: `Your account fell ${drawdown.maxDrawdownPct.toFixed(1)}% ${formatDrawdownDate(
+          drawdown.peakDate
+        )}, then climbed back to a new equity high in ${drawdown.recoveryDays} day${
+          drawdown.recoveryDays === 1 ? "" : "s"
+        }.`,
+        action: "HEALTHY RECOVERY",
+      });
+    } else if (!drawdown.recovered) {
+      extraInsights.push({
+        emoji: "⚠️",
+        title: "Currently in a drawdown",
+        description: `Your account is ${drawdown.maxDrawdownPct.toFixed(1)}% below its peak and counting — ${
+          drawdown.ongoingDays
+        } day${drawdown.ongoingDays === 1 ? "" : "s"} and still no new high.`,
+        action: "MONITOR",
+      });
+    }
+  }
+
+  const allInsights = [...insights, ...extraInsights];
 
   return (
     <div className="space-y-6">
@@ -100,8 +148,13 @@ export default function DashboardClient({ trades, startingBalance }: Props) {
         />
       </div>
 
-      <div className="animate-fade-up" style={{ animationDelay: "80ms" }}>
-        <EquityCurve points={equityPoints} startingBalance={startingBalance} />
+      <div className="animate-fade-up flex flex-col gap-4 lg:flex-row" style={{ animationDelay: "80ms" }}>
+        <div className="lg:w-3/4">
+          <EquityCurve points={equityPoints} startingBalance={startingBalance} drawdown={drawdown} />
+        </div>
+        <div className="lg:w-1/4">
+          <MaxDrawdownCard drawdown={drawdown} />
+        </div>
       </div>
 
       <div className="animate-fade-up flex flex-col gap-4 lg:flex-row" style={{ animationDelay: "100ms" }}>
@@ -166,7 +219,7 @@ export default function DashboardClient({ trades, startingBalance }: Props) {
       </div>
 
       <div className="animate-fade-up" style={{ animationDelay: "280ms" }}>
-        <InsightsGrid insights={insights} />
+        <InsightsGrid insights={allInsights} />
       </div>
     </div>
   );

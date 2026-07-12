@@ -5,6 +5,9 @@ const ACTION_STYLES: Record<Insight["action"], string> = {
   "DOUBLE DOWN": "bg-win-soft text-win",
   REWORK: "bg-gold-soft text-gold",
   MAINTAIN: "bg-neutral-soft text-neutral",
+  "COMING SOON": "bg-white/5 text-slate-400",
+  "HEALTHY RECOVERY": "bg-win-soft text-win",
+  MONITOR: "bg-gold-soft text-gold",
 };
 
 export default function InsightsGrid({ insights }: { insights: Insight[] }) {
