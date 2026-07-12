@@ -1,0 +1,76 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  status       String    @default("pending") // "pending" | "approved" | "rejected"
+  isAdmin      Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  account      Account?
+  trades       Trade[]
+  sessions     Session[]
+  setups       Setup[]
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, name])
+}
+
+model Setup {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, name])
+}
+
+model Account {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startingBalance Decimal  @default(10000) @db.Decimal(12, 2)
+  riskPercent     Decimal  @default(1.0) @db.Decimal(5, 2)
+  createdAt       DateTime @default(now())
+}
+
+model Trade {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tradeDate   DateTime @db.Date
+  pair        String
+  session     String
+  direction   String // "Long" | "Short"
+  lotSize     Decimal? @db.Decimal(10, 2)
+  entryPrice  Decimal? @db.Decimal(14, 5)
+  stopLoss    Decimal? @db.Decimal(14, 5)
+  takeProfit  Decimal? @db.Decimal(14, 5)
+  exitPrice   Decimal? @db.Decimal(14, 5)
+  pips        Decimal? @db.Decimal(10, 2)
+  riskAmount  Decimal? @db.Decimal(12, 2)
+  pnl         Decimal  @db.Decimal(12, 2)
+  rMultiple   Decimal? @db.Decimal(6, 2)
+  setup       String?
+  result      String // "Win" | "Loss"
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, tradeDate])
+}
