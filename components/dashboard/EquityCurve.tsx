@@ -41,7 +41,7 @@ export default function EquityCurve({ points, startingBalance }: Props) {
       <div className="mb-4 flex items-center justify-between">
         <h3 className="font-sans text-sm font-semibold text-slate-300">Equity curve</h3>
         <span className={`font-mono text-sm font-semibold ${isUp ? "text-win" : "text-loss"}`}>
-          ${finalBalance.toFixed(2)}
+          ${finalBalance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </span>
       </div>
       <svg

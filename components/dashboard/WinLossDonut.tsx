@@ -80,19 +80,19 @@ export default function WinLossDonut({
       <div className="mt-5 grid grid-cols-2 gap-3">
         <div className="rounded-xl border border-win/20 bg-win-soft p-3">
           <p className="text-[10px] uppercase tracking-wide text-win/70">Avg win</p>
-          <p className="mt-1 font-mono text-base font-semibold text-win">${avgWin.toFixed(2)}</p>
+          <p className="mt-1 font-mono text-base font-semibold text-win">${avgWin.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
         </div>
         <div className="rounded-xl border border-loss/20 bg-loss-soft p-3">
           <p className="text-[10px] uppercase tracking-wide text-loss/70">Avg loss</p>
-          <p className="mt-1 font-mono text-base font-semibold text-loss">${avgLoss.toFixed(2)}</p>
+          <p className="mt-1 font-mono text-base font-semibold text-loss">${avgLoss.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
         </div>
         <div className="rounded-xl border border-win/20 bg-win-soft p-3">
           <p className="text-[10px] uppercase tracking-wide text-win/70">Largest win</p>
-          <p className="mt-1 font-mono text-base font-semibold text-win">${largestWin.toFixed(2)}</p>
+          <p className="mt-1 font-mono text-base font-semibold text-win">${largestWin.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
         </div>
         <div className="rounded-xl border border-loss/20 bg-loss-soft p-3">
           <p className="text-[10px] uppercase tracking-wide text-loss/70">Largest loss</p>
-          <p className="mt-1 font-mono text-base font-semibold text-loss">${Math.abs(largestLoss).toFixed(2)}</p>
+          <p className="mt-1 font-mono text-base font-semibold text-loss">${Math.abs(largestLoss).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
         </div>
       </div>
     </div>

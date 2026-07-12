@@ -49,7 +49,7 @@ export default function PeriodBarChart({ title, bars, subtitle }: Props) {
                 <div
                   className={`animate-fade-up w-full rounded-t ${isWin ? "bg-win" : "bg-loss"}`}
                   style={{ height: `${heightPct}%`, animationDelay: `${i * 15}ms` }}
-                  title={`${b.label}: ${isWin ? "+" : ""}$${b.value.toFixed(2)}`}
+                  title={`${b.label}: ${isWin ? "+" : ""}$${Math.abs(b.value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                 />
               </div>
             );

@@ -1,10 +1,10 @@
 export function formatMoney(value: number): string {
   const sign = value >= 0 ? "+" : "-";
-  return `${sign}$${Math.abs(value).toFixed(2)}`;
+  return `${sign}$${Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function formatMoneyPlain(value: number): string {
-  return `$${value.toFixed(2)}`;
+  return `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 /** Full currency formatting with thousands separators, e.g. "$11,955.82". No +/- sign — for account balances, not gains/losses. */

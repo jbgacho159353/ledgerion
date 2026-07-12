@@ -10,7 +10,7 @@ export default function SessionBreakdown({ data }: { data: SessionPerformance[] 
             <p className="font-sans text-sm font-medium text-white">{s.session}</p>
             <p className={`mt-1 font-mono text-xl font-semibold ${s.totalPnl >= 0 ? "text-win" : "text-loss"}`}>
               {s.totalPnl >= 0 ? "+" : ""}
-              ${s.totalPnl.toFixed(2)}
+              ${Math.abs(s.totalPnl).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
             <p className="mt-1 whitespace-nowrap text-[10px] text-slate-500">
               {s.wins}W-{s.losses}L · {s.winRate.toFixed(0)}% · {s.count} trade{s.count === 1 ? "" : "s"}

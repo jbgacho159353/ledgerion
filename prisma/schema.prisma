@@ -73,4 +73,8 @@ model Trade {
 
   @@index([userId])
   @@index([userId, tradeDate])
+  @@index([userId, pair])
+  @@index([userId, session])
+  @@index([userId, setup])
+  @@index([userId, result])
 }
