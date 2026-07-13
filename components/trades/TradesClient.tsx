@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import type { SerializedTrade } from "@/lib/serialize";
 import { deleteTrade } from "@/lib/actions/trades";
@@ -50,6 +50,9 @@ function formatMoney(value: number) {
   return `${sign}$${Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+const INITIAL_VISIBLE = 11;
+const REVEAL_BATCH = 11;
+
 export default function TradesClient({
   userId,
   trades,
@@ -73,6 +76,16 @@ export default function TradesClient({
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTrade, setEditingTrade] = useState<SerializedTrade | null>(null);
   const [duplicateSeed, setDuplicateSeed] = useState<SerializedTrade | null>(null);
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
+
+  // `trades` is a fresh array from the server on every filter/sort/page change,
+  // so resetting on its identity collapses the reveal state back to the first batch.
+  useEffect(() => {
+    setVisibleCount(INITIAL_VISIBLE);
+  }, [trades]);
+
+  const visibleTrades = trades.slice(0, visibleCount);
+  const hasMore = visibleCount < trades.length;
 
   const hasFilters = !!(
     filters.pair ||
@@ -140,8 +153,12 @@ export default function TradesClient({
     navigate({ page: p });
   }
 
+  function showMore() {
+    setVisibleCount((c) => Math.min(c + REVEAL_BATCH, trades.length));
+  }
+
   const rangeStart = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
-  const rangeEnd = Math.min(page * pageSize, totalCount);
+  const rangeEnd = totalCount === 0 ? 0 : Math.min((page - 1) * pageSize + visibleTrades.length, totalCount);
 
   return (
     <div className="animate-fade-up space-y-6">
@@ -293,7 +310,7 @@ export default function TradesClient({
               </tr>
             </thead>
             <tbody>
-              {trades.map((t) => (
+              {visibleTrades.map((t) => (
                 <tr key={t.id} className="border-b border-border/60 hover:bg-white/[0.02]">
                   <td className="px-4 py-3 font-mono text-slate-300">{t.tradeDate}</td>
                   <td className="px-4 py-3 font-medium text-white">{t.pair}</td>
@@ -324,6 +341,14 @@ export default function TradesClient({
               ))}
             </tbody>
           </table>
+
+          {hasMore && (
+            <div className="flex justify-center border-t border-border px-4 py-3">
+              <button onClick={showMore} className="btn-secondary">
+                Show more
+              </button>
+            </div>
+          )}
 
           {totalPages > 1 && (
             <div className="flex items-center justify-between border-t border-border px-4 py-3">
