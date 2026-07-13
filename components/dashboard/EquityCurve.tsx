@@ -10,6 +10,8 @@ const WIDTH = 800;
 const HEIGHT = 260;
 const PAD_X = 10;
 const PAD_Y = 24;
+const UP_COLOR = "#22c55e";
+const DOWN_COLOR = "#ef4444";
 
 export default function EquityCurve({ points, startingBalance, drawdown }: Props) {
   const series = [
@@ -28,19 +30,21 @@ export default function EquityCurve({ points, startingBalance, drawdown }: Props
     result: p.result,
   }));
 
-  const linePath = coords.map((c, i) => `${i === 0 ? "M" : "L"} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(" ");
-  const last = coords[coords.length - 1];
-  const first = coords[0];
-  const areaPath = `${linePath} L ${last.x.toFixed(1)} ${HEIGHT - PAD_Y} L ${first.x.toFixed(1)} ${HEIGHT - PAD_Y} Z`;
+  // Per-segment coloring: a segment is green when its endpoint reaches or
+  // exceeds the running peak seen so far, red when it's below it — computed
+  // fresh per point so the curve correctly handles multiple peaks/troughs.
+  let runningPeak = values[0];
+  const segmentColors = values.slice(1).map((v) => {
+    const color = v >= runningPeak ? UP_COLOR : DOWN_COLOR;
+    if (v > runningPeak) runningPeak = v;
+    return color;
+  });
 
   const finalBalance = series[series.length - 1].balance;
   const isUp = finalBalance >= startingBalance;
-  const strokeColor = isUp ? "#22c55e" : "#ef4444";
 
   const ddPeakCoord = drawdown?.hasDrawdown ? coords[drawdown.peakIndex] : null;
   const ddTroughCoord = drawdown?.hasDrawdown ? coords[drawdown.troughIndex] : null;
-  const ddRectX = ddPeakCoord && ddTroughCoord ? Math.min(ddPeakCoord.x, ddTroughCoord.x) : 0;
-  const ddRectWidth = ddPeakCoord && ddTroughCoord ? Math.max(2, Math.abs(ddTroughCoord.x - ddPeakCoord.x)) : 0;
 
   return (
     <div className="glass-card h-full p-5">
@@ -56,44 +60,31 @@ export default function EquityCurve({ points, startingBalance, drawdown }: Props
         preserveAspectRatio="none"
         style={{ height: 240 }}
       >
-        <defs>
-          <linearGradient id="equity-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={strokeColor} stopOpacity="0.25" />
-            <stop offset="100%" stopColor={strokeColor} stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {ddPeakCoord && ddTroughCoord && drawdown && (
-          <>
-            <rect
-              x={ddRectX}
-              y={0}
-              width={ddRectWidth}
-              height={HEIGHT - PAD_Y}
-              fill="#ef4444"
-              fillOpacity={0.08}
-            />
-            <text
-              x={ddRectX + ddRectWidth / 2}
-              y={16}
-              textAnchor="middle"
-              className="font-mono"
-              fontSize={11}
-              fontWeight={600}
-              fill="#ef4444"
-            >
-              -{drawdown.maxDrawdownPct.toFixed(1)}%
-            </text>
-          </>
+        {coords.slice(1).map((c, i) => {
+          const prev = coords[i];
+          const color = segmentColors[i];
+          const areaPath = `M ${prev.x.toFixed(1)} ${prev.y.toFixed(1)} L ${c.x.toFixed(1)} ${c.y.toFixed(1)} L ${c.x.toFixed(1)} ${HEIGHT - PAD_Y} L ${prev.x.toFixed(1)} ${HEIGHT - PAD_Y} Z`;
+          const linePath = `M ${prev.x.toFixed(1)} ${prev.y.toFixed(1)} L ${c.x.toFixed(1)} ${c.y.toFixed(1)}`;
+          return (
+            <g key={i}>
+              <path d={areaPath} fill={color} fillOpacity={0.12} stroke="none" />
+              <path d={linePath} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" />
+            </g>
+          );
+        })}
+        {ddPeakCoord && (
+          <circle cx={ddPeakCoord.x} cy={ddPeakCoord.y} r={6} fill="#0a0e1a" stroke="#eab308" strokeWidth={2.5} />
         )}
-        <path d={areaPath} fill="url(#equity-fill)" stroke="none" />
-        <path d={linePath} fill="none" stroke={strokeColor} strokeWidth={2} />
+        {ddTroughCoord && (
+          <circle cx={ddTroughCoord.x} cy={ddTroughCoord.y} r={6} fill="#0a0e1a" stroke={DOWN_COLOR} strokeWidth={2.5} />
+        )}
         {coords.slice(1).map((c, i) => (
           <circle
             key={i}
             cx={c.x}
             cy={c.y}
             r={3}
-            fill={c.result === "Win" ? "#22c55e" : "#ef4444"}
+            fill={c.result === "Win" ? UP_COLOR : DOWN_COLOR}
             stroke="#0a0e1a"
             strokeWidth={1}
           />
@@ -109,9 +100,25 @@ export default function EquityCurve({ points, startingBalance, drawdown }: Props
           Losing trade
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-2 w-3 rounded-sm bg-loss/20" />
-          Drawdown period
+          <span className="inline-block h-2 w-3 rounded-sm bg-win/20" />
+          Rising toward high
         </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2 w-3 rounded-sm bg-loss/20" />
+          Below peak
+        </span>
+        {drawdown?.hasDrawdown && (
+          <>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2.5 w-2.5 rounded-full border-2" style={{ borderColor: "#eab308" }} />
+              Peak
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2.5 w-2.5 rounded-full border-2 border-loss" />
+              Trough
+            </span>
+          </>
+        )}
       </div>
     </div>
   );

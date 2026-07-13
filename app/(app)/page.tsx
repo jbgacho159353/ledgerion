@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { requireUserId } from "@/lib/session";
 import { getAllTradesForUser } from "@/lib/data/trades";
 import { getAccountForUser } from "@/lib/data/account";
@@ -23,5 +24,9 @@ export default async function DashboardPage() {
     );
   }
 
-  return <DashboardClient trades={serializeTrades(trades)} startingBalance={Number(account.startingBalance)} />;
+  return (
+    <Suspense fallback={null}>
+      <DashboardClient trades={serializeTrades(trades)} startingBalance={Number(account.startingBalance)} />
+    </Suspense>
+  );
 }

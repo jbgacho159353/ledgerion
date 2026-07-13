@@ -1,3 +1,7 @@
+"use client";
+
+import { useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import type { SerializedTrade } from "@/lib/serialize";
 import {
   computeTradeStats,
@@ -9,6 +13,14 @@ import {
   calculateStreak,
   buildRecentTrendSeries,
 } from "@/lib/stats";
+import {
+  filterTrades,
+  parseRangeParam,
+  getDistinctPairs,
+  getDistinctSetups,
+  DEFAULT_PAIR,
+  DEFAULT_SETUP,
+} from "@/lib/dashboardFilters";
 import { generateInsights, type Insight } from "@/lib/insights";
 import { formatMoney, formatPercent, formatR, formatCurrency } from "@/lib/format";
 import KpiCard from "@/components/KpiCard";
@@ -21,6 +33,29 @@ import PairPerformanceBars from "./PairPerformanceBars";
 import SetupPerformanceGrid from "./SetupPerformanceGrid";
 import SessionBreakdown from "./SessionBreakdown";
 import InsightsGrid from "./InsightsGrid";
+import DashboardFilters from "./DashboardFilters";
+
+const SMALL_SAMPLE_THRESHOLD = 20;
+
+function TriangleAlertIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="shrink-0"
+    >
+      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+      <line x1="12" x2="12" y1="9" y2="13" />
+      <line x1="12" x2="12.01" y1="17" y2="17" />
+    </svg>
+  );
+}
 
 function formatDrawdownDate(iso: string): string {
   if (!iso) return "from your starting balance";
@@ -37,15 +72,28 @@ interface Props {
 }
 
 export default function DashboardClient({ trades, startingBalance }: Props) {
-  const stats = computeTradeStats(trades);
-  const pairData = groupByPair(trades);
-  const setupData = groupBySetup(trades);
-  const sessionData = groupBySession(trades);
-  const equityPoints = buildEquityCurve(trades, startingBalance);
+  const searchParams = useSearchParams();
+  const activeRange = parseRangeParam(searchParams.get("range"));
+  const activePair = searchParams.get("pair") ?? DEFAULT_PAIR;
+  const activeSetup = searchParams.get("setup") ?? DEFAULT_SETUP;
+
+  const allPairs = useMemo(() => getDistinctPairs(trades), [trades]);
+  const allSetups = useMemo(() => getDistinctSetups(trades), [trades]);
+
+  const filteredTrades = useMemo(
+    () => filterTrades(trades, { range: activeRange, pair: activePair, setup: activeSetup }),
+    [trades, activeRange, activePair, activeSetup]
+  );
+
+  const stats = computeTradeStats(filteredTrades);
+  const pairData = groupByPair(filteredTrades);
+  const setupData = groupBySetup(filteredTrades);
+  const sessionData = groupBySession(filteredTrades);
+  const equityPoints = buildEquityCurve(filteredTrades, startingBalance);
   const drawdown = computeMaxDrawdown(equityPoints, startingBalance);
-  const insights = generateInsights(trades);
-  const streak = calculateStreak(trades);
-  const trend = buildRecentTrendSeries(trades, 7);
+  const insights = generateInsights(filteredTrades);
+  const streak = calculateStreak(filteredTrades);
+  const trend = buildRecentTrendSeries(filteredTrades, 7);
 
   const extraInsights: Insight[] = [
     {
@@ -101,6 +149,27 @@ export default function DashboardClient({ trades, startingBalance }: Props) {
           </span>
         )}
       </div>
+
+      <DashboardFilters
+        activeRange={activeRange}
+        activePair={activePair}
+        activeSetup={activeSetup}
+        pairs={allPairs}
+        setups={allSetups}
+      />
+
+      {filteredTrades.length < SMALL_SAMPLE_THRESHOLD && (
+        <div
+          className="animate-fade-up flex items-center gap-2 rounded-lg border border-gold/20 bg-gold-soft px-3 py-2 text-xs text-gold"
+          style={{ animationDelay: "20ms" }}
+        >
+          <TriangleAlertIcon />
+          <span>
+            Small sample — only {filteredTrades.length} trade{filteredTrades.length === 1 ? "" : "s"} logged. Win
+            rate and averages will swing sharply until you have more data.
+          </span>
+        </div>
+      )}
 
       <div
         className="grid animate-fade-up grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
@@ -159,7 +228,7 @@ export default function DashboardClient({ trades, startingBalance }: Props) {
 
       <div className="animate-fade-up flex flex-col gap-4 lg:flex-row" style={{ animationDelay: "100ms" }}>
         <div className="lg:w-3/4">
-          <CalendarHeatmap trades={trades} />
+          <CalendarHeatmap trades={filteredTrades} />
         </div>
         <div className="lg:w-1/4">
           <WinLossDonut
@@ -176,16 +245,24 @@ export default function DashboardClient({ trades, startingBalance }: Props) {
 
       <div className="animate-fade-up grid grid-cols-1 gap-4 sm:grid-cols-3" style={{ animationDelay: "120ms" }}>
         <KpiCard
-          label="Win / Loss"
-          value={formatPercent(stats.winRate)}
+          label="Current streak"
+          value={streak.count > 0 && streak.result ? `${streak.count}-trade ${streak.result === "Win" ? "win" : "loss"}` : "—"}
+          valueClassName={streak.result === "Win" ? "text-win" : streak.result === "Loss" ? "text-loss" : undefined}
           sub={
             <span className="text-xs text-slate-500">
-              {stats.wins}W - {stats.losses}L
+              {streak.count > 0 ? "Consecutive results" : "No active streak"}
             </span>
           }
         />
         <KpiCard
-          label="Top setup"
+          label={
+            <>
+              Top setup
+              {setupData[0] && (
+                <span className="normal-case text-slate-600"> · {setupData[0].count} trade{setupData[0].count === 1 ? "" : "s"}</span>
+              )}
+            </>
+          }
           value={setupData[0] ? setupData[0].setup : "—"}
           valueClassName={setupData[0] && setupData[0].totalPnl >= 0 ? "text-win" : "text-loss"}
           sub={
@@ -195,7 +272,14 @@ export default function DashboardClient({ trades, startingBalance }: Props) {
           }
         />
         <KpiCard
-          label="Top session"
+          label={
+            <>
+              Top session
+              {sessionData[0] && (
+                <span className="normal-case text-slate-600"> · {sessionData[0].count} trade{sessionData[0].count === 1 ? "" : "s"}</span>
+              )}
+            </>
+          }
           value={sessionData[0] ? sessionData[0].session : "—"}
           valueClassName={sessionData[0] && sessionData[0].totalPnl >= 0 ? "text-win" : "text-loss"}
           sub={

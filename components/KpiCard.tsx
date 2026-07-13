@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 interface Props {
-  label: string;
+  label: ReactNode;
   value: string;
   valueClassName?: string;
   sub?: ReactNode;
