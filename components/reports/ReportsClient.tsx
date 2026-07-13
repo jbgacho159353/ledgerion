@@ -29,6 +29,32 @@ function tradesInRange(trades: SerializedTrade[], start: Date, end: Date) {
 }
 
 /**
+ * Narrows a sparse day-bucket period down to just the span of days that
+ * actually have trades (plus a little padding), so a chart with a few
+ * trades early in a 31-day month doesn't render weeks of empty bars.
+ * Left untouched when most days in the period already have trades.
+ */
+function computeChartRange(range: PeriodRange, currentTrades: SerializedTrade[]): PeriodRange {
+  const totalDays = Math.round((range.end.getTime() - range.start.getTime()) / 86_400_000);
+  if (totalDays <= 1) return range;
+
+  const dates = Array.from(new Set(currentTrades.map((t) => t.tradeDate))).sort();
+  if (dates.length === 0 || dates.length / totalDays >= 0.4) return range;
+
+  const PADDING_DAYS = 2;
+  const paddedStart = new Date(`${dates[0]}T00:00:00.000Z`);
+  paddedStart.setUTCDate(paddedStart.getUTCDate() - PADDING_DAYS);
+  const paddedEnd = new Date(`${dates[dates.length - 1]}T00:00:00.000Z`);
+  paddedEnd.setUTCDate(paddedEnd.getUTCDate() + PADDING_DAYS + 1);
+
+  return {
+    start: paddedStart < range.start ? range.start : paddedStart,
+    end: paddedEnd > range.end ? range.end : paddedEnd,
+    label: range.label,
+  };
+}
+
+/**
  * P&L per day (daily/weekly/monthly) or per month (yearly) across the
  * selected period. For yearly, each month with trades also gets a % return
  * relative to the account balance at the start of that specific month
@@ -49,7 +75,8 @@ function buildPeriodBars(
     }
     const year = range.start.getUTCFullYear();
     return MONTH_LABELS.map((label, i) => {
-      if (!byMonth.has(i)) return { label, value: 0, percentage: null as number | null };
+      const dateLabel = `${label} ${year}`;
+      if (!byMonth.has(i)) return { label, value: 0, percentage: null as number | null, dateLabel };
 
       const monthPnl = round2(byMonth.get(i)!);
       const monthStartISO = `${year}-${String(i + 1).padStart(2, "0")}-01`;
@@ -59,7 +86,7 @@ function buildPeriodBars(
       const balanceAtStart = startingBalance + pnlBeforeMonth;
       const percentage = balanceAtStart !== 0 ? round2((monthPnl / balanceAtStart) * 100) : null;
 
-      return { label, value: monthPnl, percentage };
+      return { label, value: monthPnl, percentage, dateLabel };
     });
   }
 
@@ -68,11 +95,21 @@ function buildPeriodBars(
     byDay.set(t.tradeDate, (byDay.get(t.tradeDate) ?? 0) + t.pnl);
   }
 
-  const bars: { label: string; value: number }[] = [];
-  const cursor = new Date(range.start);
-  while (cursor < range.end) {
+  const chartRange = computeChartRange(range, currentTrades);
+  const bars: { label: string; value: number; dateLabel: string }[] = [];
+  const cursor = new Date(chartRange.start);
+  while (cursor < chartRange.end) {
     const dateStr = cursor.toISOString().slice(0, 10);
-    bars.push({ label: String(cursor.getUTCDate()), value: round2(byDay.get(dateStr) ?? 0) });
+    bars.push({
+      label: String(cursor.getUTCDate()),
+      value: round2(byDay.get(dateStr) ?? 0),
+      dateLabel: new Date(`${dateStr}T00:00:00.000Z`).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        timeZone: "UTC",
+      }),
+    });
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   return bars;
@@ -164,23 +201,46 @@ export default function ReportsClient({ trades, startingBalance }: Props) {
               label="Total P&L"
               value={formatMoney(stats.totalPnl)}
               valueClassName={stats.totalPnl >= 0 ? "text-win" : "text-loss"}
-              sub={<DeltaBadge current={stats.totalPnl} previous={prevStats.totalPnl} format={formatMoney} />}
+              sub={
+                prevStats.count > 0 ? (
+                  <DeltaBadge current={stats.totalPnl} previous={prevStats.totalPnl} format={formatMoney} />
+                ) : (
+                  <span className="text-xs text-slate-500">No prior period to compare</span>
+                )
+              }
             />
             <KpiCard
               label="Win rate"
               value={formatPercent(stats.winRate)}
               sub={
-                <DeltaBadge
-                  current={stats.winRate}
-                  previous={prevStats.winRate}
-                  format={(v) => `${v.toFixed(1)}pp`}
-                />
+                prevStats.count > 0 ? (
+                  <DeltaBadge
+                    current={stats.winRate}
+                    previous={prevStats.winRate}
+                    format={(v) => `${v.toFixed(1)}pp`}
+                  />
+                ) : (
+                  <span className="text-xs text-slate-500">No prior period to compare</span>
+                )
               }
             />
             <KpiCard
               label="W / L record"
               value={`${stats.wins}W / ${stats.losses}L`}
-              sub={<span className="text-xs text-slate-500">{stats.count} total trades</span>}
+              sub={
+                <div className="space-y-0.5">
+                  <span className="block text-xs text-slate-500">{stats.count} total trades</span>
+                  {prevStats.count > 0 ? (
+                    <DeltaBadge
+                      current={stats.count}
+                      previous={prevStats.count}
+                      format={(v) => `${v.toFixed(0)} trades`}
+                    />
+                  ) : (
+                    <span className="block text-xs text-slate-500">No prior period to compare</span>
+                  )}
+                </div>
+              }
             />
             <KpiCard
               label="Profit factor"
@@ -200,13 +260,15 @@ export default function ReportsClient({ trades, startingBalance }: Props) {
               label="Avg R multiple"
               value={stats.avgRMultiple != null ? formatR(stats.avgRMultiple) : "—"}
               sub={
-                stats.avgRMultiple != null && prevStats.avgRMultiple != null ? (
+                stats.avgRMultiple == null ? undefined : prevStats.avgRMultiple != null ? (
                   <DeltaBadge
                     current={stats.avgRMultiple}
                     previous={prevStats.avgRMultiple}
                     format={(v) => `${v.toFixed(2)}R`}
                   />
-                ) : undefined
+                ) : (
+                  <span className="text-xs text-slate-500">No prior period to compare</span>
+                )
               }
             />
             <KpiCard
@@ -215,11 +277,26 @@ export default function ReportsClient({ trades, startingBalance }: Props) {
               valueClassName={
                 stats.expectancy != null ? (stats.expectancy >= 0 ? "text-win" : "text-loss") : "text-white"
               }
-              sub={<span className="text-xs text-slate-500">Expected $ per trade</span>}
+              sub={
+                <div className="space-y-0.5">
+                  <span className="block text-xs text-slate-500">Expected $ per trade</span>
+                  {stats.expectancy != null && prevStats.expectancy != null ? (
+                    <DeltaBadge current={stats.expectancy} previous={prevStats.expectancy} format={formatMoney} />
+                  ) : stats.expectancy != null ? (
+                    <span className="block text-xs text-slate-500">No prior period to compare</span>
+                  ) : null}
+                </div>
+              }
             />
             <KpiCard
               label="Best trade"
-              value={stats.bestTrade ? formatMoney(stats.bestTrade.pnl) : "—"}
+              value={
+                stats.bestTrade
+                  ? `${formatMoney(stats.bestTrade.pnl)}${
+                      stats.bestTrade.rMultiple != null ? ` · ${stats.bestTrade.rMultiple}R` : ""
+                    }`
+                  : "—"
+              }
               valueClassName={stats.bestTrade ? (stats.bestTrade.pnl >= 0 ? "text-win" : "text-loss") : "text-white"}
               sub={
                 stats.bestTrade ? (
@@ -236,7 +313,13 @@ export default function ReportsClient({ trades, startingBalance }: Props) {
             />
             <KpiCard
               label="Worst trade"
-              value={stats.worstTrade ? formatMoney(stats.worstTrade.pnl) : "—"}
+              value={
+                stats.worstTrade
+                  ? `${formatMoney(stats.worstTrade.pnl)}${
+                      stats.worstTrade.rMultiple != null ? ` · ${stats.worstTrade.rMultiple}R` : ""
+                    }`
+                  : "—"
+              }
               valueClassName={
                 stats.worstTrade ? (stats.worstTrade.pnl >= 0 ? "text-win" : "text-loss") : "text-white"
               }
