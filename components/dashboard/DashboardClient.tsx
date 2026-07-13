@@ -227,10 +227,10 @@ export default function DashboardClient({ trades, startingBalance }: Props) {
       </div>
 
       <div className="animate-fade-up flex flex-col gap-4 lg:flex-row" style={{ animationDelay: "100ms" }}>
-        <div className="lg:w-3/4">
+        <div className="lg:w-[70%]">
           <CalendarHeatmap trades={filteredTrades} />
         </div>
-        <div className="lg:w-1/4">
+        <div className="lg:w-[30%]">
           <WinLossDonut
             wins={stats.wins}
             losses={stats.losses}
