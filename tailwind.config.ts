@@ -33,6 +33,10 @@ const config: Config = {
           DEFAULT: "#eab308",
           soft: "rgba(234, 179, 8, 0.15)",
         },
+        pro: {
+          DEFAULT: "#a855f7",
+          soft: "rgba(168, 85, 247, 0.15)",
+        },
       },
       fontFamily: {
         sans: ["var(--font-outfit)", "system-ui", "sans-serif"],
