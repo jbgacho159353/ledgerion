@@ -214,7 +214,7 @@ export default function CalendarHeatmap({ trades }: Props) {
                               className={`truncate text-[11px] font-bold leading-tight sm:text-sm ${
                                 c.stats.total >= 0
                                   ? "text-win"
-                                  : "text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.5)]"
+                                  : "text-[#ff6b6b] [text-shadow:0_1px_2px_rgba(0,0,0,0.55)]"
                               }`}
                             >
                               {formatCompactCurrency(c.stats.total)}
@@ -280,7 +280,7 @@ export default function CalendarHeatmap({ trades }: Props) {
                           ? "text-slate-600"
                           : weekTotal >= 0
                             ? "text-win"
-                            : "text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.5)]"
+                            : "text-[#ff6b6b] [text-shadow:0_1px_2px_rgba(0,0,0,0.55)]"
                       }`}
                     >
                       {hasTrades ? formatCompactCurrency(weekTotal) : "—"}
