@@ -13,6 +13,52 @@ const PAD_Y = 24;
 const UP_COLOR = "#22c55e";
 const DOWN_COLOR = "#ef4444";
 
+/**
+ * Per-point tangent slopes for a monotone cubic (Fritsch-Carlson) Hermite spline
+ * through (xs[i], ys[i]). Unlike a cardinal/Catmull-Rom spline, this can never
+ * overshoot past the y-range of any single segment's two endpoints — the curve
+ * only ever passes between the actual balance values it's drawn through, never
+ * above or below them, so smoothing can't invent a fake dip or spike.
+ */
+function computeMonotoneTangents(xs: number[], ys: number[]): number[] {
+  const n = xs.length;
+  const m = new Array(n).fill(0);
+  if (n < 2) return m;
+
+  const delta: number[] = [];
+  for (let k = 0; k < n - 1; k++) {
+    const h = xs[k + 1] - xs[k] || 1;
+    delta.push((ys[k + 1] - ys[k]) / h);
+  }
+
+  m[0] = delta[0];
+  m[n - 1] = delta[n - 2];
+  for (let k = 1; k < n - 1; k++) {
+    m[k] = (delta[k - 1] + delta[k]) / 2;
+  }
+
+  for (let k = 0; k < n - 1; k++) {
+    const dk = delta[k];
+    if (dk === 0) {
+      m[k] = 0;
+      m[k + 1] = 0;
+      continue;
+    }
+    if (m[k] / dk < 0) m[k] = 0;
+    if (m[k + 1] / dk < 0) m[k + 1] = 0;
+    const a = m[k] / dk;
+    const b = m[k + 1] / dk;
+    const s = a * a + b * b;
+    if (s > 9) {
+      const tau = 3 / Math.sqrt(s);
+      m[k] = tau * m[k];
+      m[k + 1] = tau * m[k + 1];
+    }
+  }
+
+  return m;
+}
+
 export default function EquityCurve({ points, startingBalance, drawdown }: Props) {
   const series = [
     { balance: startingBalance, result: "start", pnl: 0, date: "", tradeId: "start" },
@@ -29,6 +75,14 @@ export default function EquityCurve({ points, startingBalance, drawdown }: Props
     y: HEIGHT - PAD_Y - ((p.balance - min) / range) * (HEIGHT - PAD_Y * 2),
     result: p.result,
   }));
+
+  // One tangent per point, shared by the segment before and after it, so the
+  // curve is continuous (no visible kink) even though each segment is drawn
+  // as its own colored <path> below.
+  const tangents = computeMonotoneTangents(
+    coords.map((c) => c.x),
+    coords.map((c) => c.y)
+  );
 
   // Per-segment coloring: a segment is green when its endpoint reaches or
   // exceeds the running peak seen so far, red when it's below it — computed
@@ -73,8 +127,14 @@ export default function EquityCurve({ points, startingBalance, drawdown }: Props
         {coords.slice(1).map((c, i) => {
           const prev = coords[i];
           const color = segmentColors[i];
-          const areaPath = `M ${prev.x.toFixed(1)} ${prev.y.toFixed(1)} L ${c.x.toFixed(1)} ${c.y.toFixed(1)} L ${c.x.toFixed(1)} ${HEIGHT - PAD_Y} L ${prev.x.toFixed(1)} ${HEIGHT - PAD_Y} Z`;
-          const linePath = `M ${prev.x.toFixed(1)} ${prev.y.toFixed(1)} L ${c.x.toFixed(1)} ${c.y.toFixed(1)}`;
+          const h = c.x - prev.x;
+          const cp1x = prev.x + h / 3;
+          const cp1y = prev.y + (tangents[i] * h) / 3;
+          const cp2x = c.x - h / 3;
+          const cp2y = c.y - (tangents[i + 1] * h) / 3;
+          const curveCmd = `C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)} ${cp2x.toFixed(1)} ${cp2y.toFixed(1)} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`;
+          const areaPath = `M ${prev.x.toFixed(1)} ${prev.y.toFixed(1)} ${curveCmd} L ${c.x.toFixed(1)} ${HEIGHT - PAD_Y} L ${prev.x.toFixed(1)} ${HEIGHT - PAD_Y} Z`;
+          const linePath = `M ${prev.x.toFixed(1)} ${prev.y.toFixed(1)} ${curveCmd}`;
           const areaFill = color === UP_COLOR ? "url(#equityAreaUp)" : "url(#equityAreaDown)";
           return (
             <g key={i}>
