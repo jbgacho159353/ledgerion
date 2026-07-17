@@ -144,33 +144,27 @@ export default function EquityCurve({ points, startingBalance, drawdown }: Props
           );
         })}
         {ddPeakCoord && (
-          <g>
+          <g className="animate-fade-up" style={{ transformBox: "fill-box", transformOrigin: "center" }}>
             <circle
               cx={ddPeakCoord.x}
               cy={ddPeakCoord.y}
-              r={10}
-              fill="none"
-              stroke="#eab308"
-              strokeWidth={1.5}
-              opacity={0.55}
-              className="animate-ping"
-              style={{ transformBox: "fill-box", transformOrigin: "center" }}
+              r={9}
+              fill="#eab308"
+              opacity={0.4}
+              style={{ filter: "blur(4px)" }}
             />
             <circle cx={ddPeakCoord.x} cy={ddPeakCoord.y} r={6} fill="#0a0e1a" stroke="#eab308" strokeWidth={2.5} />
           </g>
         )}
         {ddTroughCoord && (
-          <g>
+          <g className="animate-fade-up" style={{ transformBox: "fill-box", transformOrigin: "center" }}>
             <circle
               cx={ddTroughCoord.x}
               cy={ddTroughCoord.y}
-              r={10}
-              fill="none"
-              stroke={DOWN_COLOR}
-              strokeWidth={1.5}
-              opacity={0.55}
-              className="animate-ping"
-              style={{ transformBox: "fill-box", transformOrigin: "center" }}
+              r={9}
+              fill={DOWN_COLOR}
+              opacity={0.4}
+              style={{ filter: "blur(4px)" }}
             />
             <circle cx={ddTroughCoord.x} cy={ddTroughCoord.y} r={6} fill="#0a0e1a" stroke={DOWN_COLOR} strokeWidth={2.5} />
           </g>
