@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import type { SerializedTrade } from "@/lib/serialize";
 import { deleteTrade } from "@/lib/actions/trades";
@@ -77,15 +77,54 @@ export default function TradesClient({
   const [editingTrade, setEditingTrade] = useState<SerializedTrade | null>(null);
   const [duplicateSeed, setDuplicateSeed] = useState<SerializedTrade | null>(null);
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const selectAllRef = useRef<HTMLInputElement>(null);
 
   // `trades` is a fresh array from the server on every filter/sort/page change,
-  // so resetting on its identity collapses the reveal state back to the first batch.
+  // so resetting on its identity collapses the reveal state back to the first batch
+  // and clears any selection made against the previous result set.
   useEffect(() => {
     setVisibleCount(INITIAL_VISIBLE);
+    setSelectedIds(new Set());
   }, [trades]);
 
   const visibleTrades = trades.slice(0, visibleCount);
   const hasMore = visibleCount < trades.length;
+
+  const allVisibleSelected = visibleTrades.length > 0 && visibleTrades.every((t) => selectedIds.has(t.id));
+  const someVisibleSelected = visibleTrades.some((t) => selectedIds.has(t.id));
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someVisibleSelected && !allVisibleSelected;
+    }
+  }, [someVisibleSelected, allVisibleSelected]);
+
+  function toggleSelectAll() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        visibleTrades.forEach((t) => next.delete(t.id));
+      } else {
+        visibleTrades.forEach((t) => next.add(t.id));
+      }
+      return next;
+    });
+  }
+
+  function toggleRow(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
 
   const hasFilters = !!(
     filters.pair ||
@@ -139,6 +178,20 @@ export default function TradesClient({
     router.refresh();
   }
 
+  function handleBulkDelete() {
+    const count = selectedIds.size;
+    if (count === 0) return;
+    if (!window.confirm(`Delete ${count} trade${count === 1 ? "" : "s"}? This cannot be undone.`)) return;
+    const ids = Array.from(selectedIds);
+    setIsBulkDeleting(true);
+    startTransition(async () => {
+      await Promise.all(ids.map((id) => deleteTrade(id)));
+      setIsBulkDeleting(false);
+      setSelectedIds(new Set());
+      router.refresh();
+    });
+  }
+
   function toggleSort(key: SortKey) {
     const nextDir = sortBy === key && sortDir === "desc" ? "asc" : "desc";
     navigate({ sortBy: key, sortDir: nextDir });
@@ -171,16 +224,34 @@ export default function TradesClient({
               : `Showing ${rangeStart}-${rangeEnd} of ${totalCount} trade${totalCount === 1 ? "" : "s"}`}
           </p>
         </div>
-        <div className="flex gap-2">
-          {lastTrade && (
-            <button onClick={openDuplicate} className="btn-secondary">
-              Duplicate last trade
+        {selectedIds.size > 0 ? (
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-loss/30 bg-loss-soft px-4 py-2">
+            <span className="text-sm font-medium text-white">
+              {selectedIds.size} trade{selectedIds.size === 1 ? "" : "s"} selected
+            </span>
+            <button
+              onClick={handleBulkDelete}
+              disabled={isBulkDeleting}
+              className="inline-flex items-center justify-center rounded-lg border border-loss/40 bg-loss px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-loss/90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isBulkDeleting ? "Deleting…" : "Delete selected"}
             </button>
-          )}
-          <button onClick={openNew} className="btn-primary">
-            + Log trade
-          </button>
-        </div>
+            <button onClick={clearSelection} disabled={isBulkDeleting} className="btn-secondary">
+              Clear selection
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            {lastTrade && (
+              <button onClick={openDuplicate} className="btn-secondary">
+                Duplicate last trade
+              </button>
+            )}
+            <button onClick={openNew} className="btn-primary">
+              + Log trade
+            </button>
+          </div>
+        )}
       </div>
 
       {(totalCount > 0 || hasFilters) && (
@@ -292,6 +363,16 @@ export default function TradesClient({
           <table className="w-full min-w-[960px] text-left text-sm">
             <thead>
               <tr className="border-b border-border text-xs uppercase tracking-wide text-slate-500">
+                <th className="w-10 px-4 py-3">
+                  <input
+                    ref={selectAllRef}
+                    type="checkbox"
+                    className="checkbox-field"
+                    checked={allVisibleSelected}
+                    onChange={toggleSelectAll}
+                    aria-label="Select all visible trades"
+                  />
+                </th>
                 <th className="px-4 py-3">
                   <button onClick={() => toggleSort("tradeDate")}>Date{sortIndicator("tradeDate")}</button>
                 </th>
@@ -312,6 +393,15 @@ export default function TradesClient({
             <tbody>
               {visibleTrades.map((t) => (
                 <tr key={t.id} className="border-b border-border/60 hover:bg-white/[0.02]">
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      className="checkbox-field"
+                      checked={selectedIds.has(t.id)}
+                      onChange={() => toggleRow(t.id)}
+                      aria-label={`Select trade ${t.pair} on ${t.tradeDate}`}
+                    />
+                  </td>
                   <td className="px-4 py-3 font-mono text-slate-300">{t.tradeDate}</td>
                   <td className="px-4 py-3 font-medium text-white">{t.pair}</td>
                   <td className="px-4 py-3 text-slate-400">{t.session}</td>

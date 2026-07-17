@@ -32,6 +32,9 @@
   .badge-loss {
     @apply inline-flex items-center rounded-full bg-loss-soft px-2.5 py-0.5 text-xs font-medium text-loss;
   }
+  .checkbox-field {
+    @apply h-4 w-4 cursor-pointer rounded border-border bg-black/20 accent-neutral;
+  }
   .modal-overlay {
     @apply fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6 py-8;
   }
