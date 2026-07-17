@@ -358,6 +358,17 @@ export default function TradesClient({
         />
       ) : (
         <div className="glass-card overflow-x-auto">
+          <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+            <button
+              onClick={toggleSelectAll}
+              className="text-sm font-medium text-neutral hover:underline"
+            >
+              {allVisibleSelected ? "Deselect all" : "Select all"}
+            </button>
+            {someVisibleSelected && (
+              <span className="text-xs text-slate-500">({selectedIds.size} selected)</span>
+            )}
+          </div>
           <table className="w-full min-w-[960px] text-left text-sm">
             <thead>
               <tr className="border-b border-border text-xs uppercase tracking-wide text-slate-500">
