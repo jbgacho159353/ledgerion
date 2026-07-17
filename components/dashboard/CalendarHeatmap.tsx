@@ -217,7 +217,7 @@ export default function CalendarHeatmap({ trades }: Props) {
                             >
                               {formatCompactCurrency(c.stats.total)}
                             </span>
-                            <span className="hidden truncate text-[9px] leading-none text-slate-500 sm:block">
+                            <span className="hidden truncate text-[9px] leading-none text-slate-100 [text-shadow:0_1px_2px_rgba(0,0,0,0.65)] sm:block">
                               {c.stats.count} trade{c.stats.count === 1 ? "" : "s"}
                             </span>
                           </>
@@ -279,7 +279,11 @@ export default function CalendarHeatmap({ trades }: Props) {
                     >
                       {hasTrades ? formatCompactCurrency(weekTotal) : "—"}
                     </span>
-                    <span className="truncate text-[9px] leading-none text-slate-500">
+                    <span
+                      className={`truncate text-[9px] leading-none ${
+                        hasTrades ? "text-slate-100 [text-shadow:0_1px_2px_rgba(0,0,0,0.65)]" : "text-slate-500"
+                      }`}
+                    >
                       {hasTrades ? `${tradedDays.length} day${tradedDays.length === 1 ? "" : "s"}` : "No trades"}
                     </span>
                   </div>
