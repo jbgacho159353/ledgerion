@@ -15,6 +15,7 @@ import {
 } from "@/lib/stats";
 import {
   filterTrades,
+  filterPreviousPeriodTrades,
   parseRangeParam,
   getDistinctPairs,
   getDistinctSetups,
@@ -22,6 +23,7 @@ import {
   DEFAULT_SETUP,
 } from "@/lib/dashboardFilters";
 import { generateInsights, type Insight } from "@/lib/insights";
+import { round2 } from "@/lib/calculations";
 import { formatMoney, formatPercent, formatR, formatCurrency } from "@/lib/format";
 import KpiCard from "@/components/KpiCard";
 import Sparkline from "@/components/Sparkline";
@@ -36,6 +38,31 @@ import InsightsGrid from "./InsightsGrid";
 import DashboardFilters from "./DashboardFilters";
 
 const SMALL_SAMPLE_THRESHOLD = 20;
+const LOW_SAMPLE_CARD_THRESHOLD = 10;
+const MIN_TREND_TRADES = 3;
+
+/** Small pill flagging a stat card as statistically unreliable with very few trades. */
+function LowSampleTag() {
+  return (
+    <span className="ml-1.5 inline-flex items-center rounded-full bg-gold-soft px-1.5 py-0.5 text-[9px] font-medium normal-case tracking-normal text-gold">
+      low sample
+    </span>
+  );
+}
+
+/** Up/down arrow + delta comparing the current period to the immediately preceding one. */
+function TrendBadge({ delta, label }: { delta: number; label: string }) {
+  if (delta === 0) return null;
+  const up = delta > 0;
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 font-mono text-[11px] font-semibold ${up ? "text-win" : "text-loss"}`}
+    >
+      <span aria-hidden="true">{up ? "▲" : "▼"}</span>
+      {label}
+    </span>
+  );
+}
 
 function TriangleAlertIcon() {
   return (
@@ -94,6 +121,17 @@ export default function DashboardClient({ trades, startingBalance }: Props) {
   const insights = generateInsights(filteredTrades);
   const streak = calculateStreak(filteredTrades);
   const trend = buildRecentTrendSeries(filteredTrades, 7);
+
+  // Period-over-period comparison, only meaningful for fixed-length ranges (7d/30d/90d)
+  // with enough trades on both sides — "ytd"/"all" have no equal-length prior window.
+  const previousPeriodTrades = useMemo(
+    () => filterPreviousPeriodTrades(trades, { range: activeRange, pair: activePair, setup: activeSetup }),
+    [trades, activeRange, activePair, activeSetup]
+  );
+  const previousStats = computeTradeStats(previousPeriodTrades);
+  const canShowTrend = previousPeriodTrades.length >= MIN_TREND_TRADES && filteredTrades.length >= MIN_TREND_TRADES;
+  const balancePnlDelta = canShowTrend ? round2(stats.totalPnl - previousStats.totalPnl) : 0;
+  const winRateDelta = canShowTrend ? round2(stats.winRate - previousStats.winRate) : 0;
 
   const extraInsights: Insight[] = [
     {
@@ -179,7 +217,14 @@ export default function DashboardClient({ trades, startingBalance }: Props) {
           label="Current Balance"
           value={formatCurrency(startingBalance + stats.totalPnl)}
           valueClassName="text-gold"
-          sub={<span className="text-xs text-slate-500">Starting: {formatCurrency(startingBalance)}</span>}
+          sub={
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-slate-500">Starting: {formatCurrency(startingBalance)}</span>
+              {canShowTrend && (
+                <TrendBadge delta={balancePnlDelta} label={`${formatMoney(balancePnlDelta)} vs prior period`} />
+              )}
+            </div>
+          }
         />
         <KpiCard
           label="Total P&L"
@@ -188,14 +233,39 @@ export default function DashboardClient({ trades, startingBalance }: Props) {
           sparkline={trend.pnl.length >= 2 ? <Sparkline values={trend.pnl} /> : undefined}
         />
         <KpiCard
-          label="Win rate"
+          label={
+            <>
+              Win rate
+              {filteredTrades.length < LOW_SAMPLE_CARD_THRESHOLD && <LowSampleTag />}
+            </>
+          }
           value={formatPercent(stats.winRate)}
+          sub={
+            canShowTrend ? (
+              <TrendBadge delta={winRateDelta} label={`${winRateDelta > 0 ? "+" : ""}${winRateDelta.toFixed(1)}pp vs prior period`} />
+            ) : undefined
+          }
           sparkline={trend.winRate.length >= 2 ? <Sparkline values={trend.winRate} /> : undefined}
         />
         <KpiCard
-          label="Profit factor"
-          value={stats.profitFactor != null ? stats.profitFactor.toFixed(2) : "—"}
+          label={
+            <>
+              Profit factor
+              {filteredTrades.length < LOW_SAMPLE_CARD_THRESHOLD && <LowSampleTag />}
+            </>
+          }
+          value={stats.profitFactor != null ? stats.profitFactor.toFixed(2) : "N/A"}
           valueClassName="text-gold"
+          sub={
+            stats.profitFactor == null ? (
+              <span
+                className="cursor-help text-xs text-slate-500"
+                title="Profit factor (gross profit ÷ gross loss) is undefined until you have at least one winning trade."
+              >
+                Needs a winning trade ⓘ
+              </span>
+            ) : undefined
+          }
         />
         <KpiCard
           label="Avg R (expectancy)"
@@ -207,14 +277,47 @@ export default function DashboardClient({ trades, startingBalance }: Props) {
           }
           sparkline={trend.avgR.length >= 2 ? <Sparkline values={trend.avgR} /> : undefined}
         />
-        <KpiCard
-          label="Avg win vs loss"
-          value={formatMoney(stats.avgWin)}
-          valueClassName="text-win"
-          sub={
-            <span className="font-mono text-sm font-bold text-loss">{formatMoney(-stats.avgLoss)}</span>
+        {(() => {
+          const hasWins = stats.wins > 0;
+          const hasLosses = stats.losses > 0;
+          const label = (
+            <>
+              Avg win vs loss
+              {filteredTrades.length < LOW_SAMPLE_CARD_THRESHOLD && <LowSampleTag />}
+            </>
+          );
+          if (!hasWins && !hasLosses) {
+            return <KpiCard label={label} value="—" />;
           }
-        />
+          if (hasWins && hasLosses) {
+            return (
+              <KpiCard
+                label={label}
+                value={formatMoney(stats.avgWin)}
+                valueClassName="text-win"
+                sub={<span className="font-mono text-sm font-bold text-loss">{formatMoney(-stats.avgLoss)}</span>}
+              />
+            );
+          }
+          if (hasLosses) {
+            return (
+              <KpiCard
+                label={label}
+                value={formatMoney(-stats.avgLoss)}
+                valueClassName="text-loss"
+                sub={<span className="text-xs text-slate-500">No wins yet</span>}
+              />
+            );
+          }
+          return (
+            <KpiCard
+              label={label}
+              value={formatMoney(stats.avgWin)}
+              valueClassName="text-win"
+              sub={<span className="text-xs text-slate-500">No losses yet</span>}
+            />
+          );
+        })()}
       </div>
 
       <div className="animate-fade-up flex flex-col gap-4 lg:flex-row" style={{ animationDelay: "80ms" }}>

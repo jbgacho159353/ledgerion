@@ -32,6 +32,21 @@ function cellClass(total: number | null) {
   return "bg-white/[0.04] text-slate-400";
 }
 
+/**
+ * Day-cell background scaled by how big that day's P&L was relative to the
+ * biggest day in the visible month, so a $10 day and a $1,000 day don't render
+ * as the same flat color. Falls back to the flat win/loss-soft tokens for
+ * zero/empty days, matching the week-summary cells.
+ */
+function dayCellStyle(total: number | null, maxAbs: number): { className: string; style?: React.CSSProperties } {
+  if (total == null) return { className: "bg-white/[0.02] text-slate-600" };
+  if (total === 0) return { className: "bg-white/[0.04] text-slate-400" };
+  const intensity = maxAbs > 0 ? Math.min(1, Math.abs(total) / maxAbs) : 1;
+  const opacity = 0.14 + intensity * 0.46;
+  const rgb = total > 0 ? "34, 197, 94" : "239, 68, 68";
+  return { className: "", style: { backgroundColor: `rgba(${rgb}, ${opacity})` } };
+}
+
 export default function CalendarHeatmap({ trades }: Props) {
   const [monthDate, setMonthDate] = useState(() => {
     const d = new Date();
@@ -55,6 +70,14 @@ export default function CalendarHeatmap({ trades }: Props) {
     }
     return map;
   }, [trades, year, month]);
+
+  const maxAbsDayPnl = useMemo(() => {
+    let max = 0;
+    dayStats.forEach((s) => {
+      max = Math.max(max, Math.abs(s.total));
+    });
+    return max;
+  }, [dayStats]);
 
   const firstDay = new Date(year, month, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -167,15 +190,17 @@ export default function CalendarHeatmap({ trades }: Props) {
             {cells.map((c, i) => {
               const isToday = c.dateStr === todayStr;
               const isSelected = c.dateStr != null && c.dateStr === selectedDate;
+              const bg = dayCellStyle(c.stats?.total ?? null, maxAbsDayPnl);
               return (
                 <button
                   key={i}
                   type="button"
                   disabled={c.day == null}
                   onClick={() => c.dateStr && selectDay(c.dateStr)}
-                  className={`flex aspect-square flex-col overflow-hidden rounded-lg px-1 py-1 text-left font-mono transition-transform sm:aspect-auto sm:h-[76px] sm:px-2 sm:py-1.5 ${cellClass(
-                    c.stats?.total ?? null
-                  )} ${c.day != null ? "active:scale-95 sm:cursor-default" : ""} ${
+                  style={bg.style}
+                  className={`flex aspect-square flex-col overflow-hidden rounded-lg px-1 py-1 text-left font-mono transition-transform sm:aspect-auto sm:h-[76px] sm:px-2 sm:py-1.5 ${
+                    bg.className
+                  } ${c.day != null ? "active:scale-95 sm:cursor-default" : ""} ${
                     isToday ? "ring-2 ring-inset ring-gold/70" : ""
                   } ${isSelected ? "ring-2 ring-inset ring-neutral" : ""}`}
                 >
@@ -255,7 +280,7 @@ export default function CalendarHeatmap({ trades }: Props) {
                       {hasTrades ? formatCompactCurrency(weekTotal) : "—"}
                     </span>
                     <span className="truncate text-[9px] leading-none text-slate-500">
-                      {tradedDays.length} day{tradedDays.length === 1 ? "" : "s"}
+                      {hasTrades ? `${tradedDays.length} day${tradedDays.length === 1 ? "" : "s"}` : "No trades"}
                     </span>
                   </div>
                 </Fragment>

@@ -27,43 +27,55 @@ export default function WinLossDonut({
       <h3 className="font-sans text-sm font-semibold text-slate-300">Win / Loss</h3>
 
       <div className="mt-4 flex flex-col items-center">
-        <svg
-          viewBox="0 0 200 200"
-          className="h-auto w-full max-w-[190px] drop-shadow-[0_0_28px_rgba(34,197,94,0.18)]"
-        >
-          <defs>
-            <linearGradient id="winGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#4ade80" />
-              <stop offset="100%" stopColor="#16a34a" />
-            </linearGradient>
-          </defs>
-          <circle cx={100} cy={100} r={radius} fill="none" stroke="rgba(239,68,68,0.18)" strokeWidth={18} />
-          <circle
-            cx={100}
-            cy={100}
-            r={radius}
-            fill="none"
-            stroke="url(#winGradient)"
-            strokeWidth={18}
-            strokeDasharray={`${winLength} ${circumference - winLength}`}
-            strokeLinecap="round"
-            transform="rotate(-90 100 100)"
-          />
-          <text
-            x={100}
-            y={95}
-            textAnchor="middle"
-            fill="white"
-            fontFamily="var(--font-jetbrains-mono)"
-            fontSize={36}
-            fontWeight={700}
+        {total === 0 ? (
+          <div className="flex h-[190px] w-full max-w-[190px] flex-col items-center justify-center gap-2 rounded-full border border-dashed border-border">
+            <span className="text-3xl" aria-hidden="true">
+              🎯
+            </span>
+            <p className="text-sm font-medium text-slate-300">Not enough data yet</p>
+            <p className="max-w-[140px] text-center text-[11px] leading-tight text-slate-500">
+              Log a few trades to see your win rate
+            </p>
+          </div>
+        ) : (
+          <svg
+            viewBox="0 0 200 200"
+            className="h-auto w-full max-w-[190px] drop-shadow-[0_0_28px_rgba(34,197,94,0.18)]"
           >
-            {winRate.toFixed(0)}%
-          </text>
-          <text x={100} y={118} textAnchor="middle" fill="#94a3b8" fontSize={11} letterSpacing="0.08em">
-            WIN RATE
-          </text>
-        </svg>
+            <defs>
+              <linearGradient id="winGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#4ade80" />
+                <stop offset="100%" stopColor="#16a34a" />
+              </linearGradient>
+            </defs>
+            <circle cx={100} cy={100} r={radius} fill="none" stroke="rgba(239,68,68,0.18)" strokeWidth={18} />
+            <circle
+              cx={100}
+              cy={100}
+              r={radius}
+              fill="none"
+              stroke="url(#winGradient)"
+              strokeWidth={18}
+              strokeDasharray={`${winLength} ${circumference - winLength}`}
+              strokeLinecap="round"
+              transform="rotate(-90 100 100)"
+            />
+            <text
+              x={100}
+              y={95}
+              textAnchor="middle"
+              fill="white"
+              fontFamily="var(--font-jetbrains-mono)"
+              fontSize={36}
+              fontWeight={700}
+            >
+              {winRate.toFixed(0)}%
+            </text>
+            <text x={100} y={118} textAnchor="middle" fill="#94a3b8" fontSize={11} letterSpacing="0.08em">
+              WIN RATE
+            </text>
+          </svg>
+        )}
 
         <div className="mt-4 flex items-center gap-4 text-xs">
           <span className="flex items-center gap-1.5 text-slate-400">

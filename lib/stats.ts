@@ -70,7 +70,9 @@ export function computeTradeStats(trades: SerializedTrade[]): TradeStats {
   }
 
   const winRate = round2((wins / trades.length) * 100);
-  const profitFactor = grossLoss > 0 ? round2(grossWin / grossLoss) : null;
+  // Undefined (not 0) until there's at least one winning trade — gross profit of $0
+  // isn't "no edge," it's "no data yet," so it shouldn't render as a real ratio.
+  const profitFactor = wins > 0 && grossLoss > 0 ? round2(grossWin / grossLoss) : null;
   const avgRMultiple = rCount > 0 ? round2(rSum / rCount) : null;
   const avgWin = wins > 0 ? round2(grossWin / wins) : 0;
   const avgLoss = losses > 0 ? round2(grossLoss / losses) : 0;
@@ -286,7 +288,7 @@ export interface DrawdownStats {
   recovered: boolean;
   recoveryDate: string | null;
   recoveryDays: number | null;
-  /** Days since the trough, only set while still unrecovered. */
+  /** Days since the drawdown began (the peak date), only set while still unrecovered. */
   ongoingDays: number | null;
   /** True when the most recent equity point is at (or above) the all-time high. */
   isCurrentlyAtHigh: boolean;
@@ -376,7 +378,7 @@ export function computeMaxDrawdown(equityPoints: EquityPoint[], startingBalance:
 
   if (!recovered) {
     const today = new Date().toISOString().slice(0, 10);
-    ongoingDays = Math.max(0, daysBetween(ddTroughDate, today));
+    ongoingDays = Math.max(0, daysBetween(ddPeakDate, today));
   }
 
   return {

@@ -60,23 +60,60 @@ export default function EquityCurve({ points, startingBalance, drawdown }: Props
         preserveAspectRatio="none"
         style={{ height: 240 }}
       >
+        <defs>
+          <linearGradient id="equityAreaUp" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={UP_COLOR} stopOpacity={0.4} />
+            <stop offset="100%" stopColor={UP_COLOR} stopOpacity={0} />
+          </linearGradient>
+          <linearGradient id="equityAreaDown" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={DOWN_COLOR} stopOpacity={0.4} />
+            <stop offset="100%" stopColor={DOWN_COLOR} stopOpacity={0} />
+          </linearGradient>
+        </defs>
         {coords.slice(1).map((c, i) => {
           const prev = coords[i];
           const color = segmentColors[i];
           const areaPath = `M ${prev.x.toFixed(1)} ${prev.y.toFixed(1)} L ${c.x.toFixed(1)} ${c.y.toFixed(1)} L ${c.x.toFixed(1)} ${HEIGHT - PAD_Y} L ${prev.x.toFixed(1)} ${HEIGHT - PAD_Y} Z`;
           const linePath = `M ${prev.x.toFixed(1)} ${prev.y.toFixed(1)} L ${c.x.toFixed(1)} ${c.y.toFixed(1)}`;
+          const areaFill = color === UP_COLOR ? "url(#equityAreaUp)" : "url(#equityAreaDown)";
           return (
             <g key={i}>
-              <path d={areaPath} fill={color} fillOpacity={0.12} stroke="none" />
+              <path d={areaPath} fill={areaFill} stroke="none" />
               <path d={linePath} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" />
             </g>
           );
         })}
         {ddPeakCoord && (
-          <circle cx={ddPeakCoord.x} cy={ddPeakCoord.y} r={6} fill="#0a0e1a" stroke="#eab308" strokeWidth={2.5} />
+          <g>
+            <circle
+              cx={ddPeakCoord.x}
+              cy={ddPeakCoord.y}
+              r={10}
+              fill="none"
+              stroke="#eab308"
+              strokeWidth={1.5}
+              opacity={0.55}
+              className="animate-ping"
+              style={{ transformBox: "fill-box", transformOrigin: "center" }}
+            />
+            <circle cx={ddPeakCoord.x} cy={ddPeakCoord.y} r={6} fill="#0a0e1a" stroke="#eab308" strokeWidth={2.5} />
+          </g>
         )}
         {ddTroughCoord && (
-          <circle cx={ddTroughCoord.x} cy={ddTroughCoord.y} r={6} fill="#0a0e1a" stroke={DOWN_COLOR} strokeWidth={2.5} />
+          <g>
+            <circle
+              cx={ddTroughCoord.x}
+              cy={ddTroughCoord.y}
+              r={10}
+              fill="none"
+              stroke={DOWN_COLOR}
+              strokeWidth={1.5}
+              opacity={0.55}
+              className="animate-ping"
+              style={{ transformBox: "fill-box", transformOrigin: "center" }}
+            />
+            <circle cx={ddTroughCoord.x} cy={ddTroughCoord.y} r={6} fill="#0a0e1a" stroke={DOWN_COLOR} strokeWidth={2.5} />
+          </g>
         )}
         {coords.slice(1).map((c, i) => (
           <circle
