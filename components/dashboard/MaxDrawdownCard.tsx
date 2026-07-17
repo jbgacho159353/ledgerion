@@ -5,6 +5,10 @@ interface Props {
   drawdown: DrawdownStats;
 }
 
+function formatSignedCurrency(value: number): string {
+  return value < 0 ? `-${formatCurrency(Math.abs(value))}` : formatCurrency(value);
+}
+
 function formatDate(iso: string): string {
   if (!iso) return "—";
   return new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", {
@@ -32,7 +36,14 @@ export default function MaxDrawdownCard({ drawdown }: Props) {
     <div className="glass-card flex h-full flex-col p-5">
       <h3 className="font-sans text-sm font-semibold text-slate-300">Max Drawdown</h3>
 
-      <div className="mt-3 font-mono text-3xl font-bold text-loss">-{drawdown.maxDrawdownPct.toFixed(1)}%</div>
+      <div className="mt-3 font-mono text-3xl font-bold text-loss">
+        -{drawdown.maxDrawdownPct.toFixed(1)}%{drawdown.accountDepleted ? "+" : ""}
+      </div>
+      {drawdown.accountDepleted && (
+        <p className="mt-1 text-[11px] font-medium text-loss">
+          Account depleted — balance fell to {formatSignedCurrency(drawdown.troughBalance)}
+        </p>
+      )}
       <p className="mt-1 text-xs text-slate-500">-{formatCurrency(drawdown.maxDrawdownAmount)} from peak</p>
 
       <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/5">
@@ -54,7 +65,9 @@ export default function MaxDrawdownCard({ drawdown }: Props) {
         </div>
         <div className="flex items-center justify-between">
           <span className="text-slate-500">Trough balance</span>
-          <span className="font-mono text-slate-300">{formatCurrency(drawdown.troughBalance)}</span>
+          <span className={`font-mono ${drawdown.troughBalance < 0 ? "text-loss" : "text-slate-300"}`}>
+            {formatSignedCurrency(drawdown.troughBalance)}
+          </span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-slate-500">Started</span>

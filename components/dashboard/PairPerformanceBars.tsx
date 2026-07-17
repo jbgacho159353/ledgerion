@@ -20,8 +20,8 @@ export default function PairPerformanceBars({ data }: { data: PairPerformance[] 
                 />
               </div>
               <span className={`w-20 shrink-0 text-right font-mono text-xs ${isWin ? "text-win" : "text-loss"}`}>
-                {isWin ? "+" : ""}
-                ${d.totalPnl.toFixed(0)}
+                {isWin ? "+" : "-"}
+                ${Math.abs(d.totalPnl).toFixed(0)}
               </span>
             </div>
           );

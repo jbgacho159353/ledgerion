@@ -275,7 +275,12 @@ export function buildEquityCurve(trades: SerializedTrade[], startingBalance: num
 export interface DrawdownStats {
   /** False when equity has only ever gone up (no point below its running peak). */
   hasDrawdown: boolean;
+  /** Clamped to [0, 100] — a percent-of-peak drawdown is meaningless past -100%. See accountDepleted. */
   maxDrawdownPct: number;
+  /** True when the trough balance fell to zero or below, meaning the raw (peak-trough)/peak
+   *  ratio actually exceeded 100% before clamping — the account balance itself (see
+   *  troughBalance) still reflects the real, unclamped, possibly-negative number. */
+  accountDepleted: boolean;
   maxDrawdownAmount: number;
   peakBalance: number;
   peakDate: string;
@@ -347,6 +352,7 @@ export function computeMaxDrawdown(equityPoints: EquityPoint[], startingBalance:
     return {
       hasDrawdown: false,
       maxDrawdownPct: 0,
+      accountDepleted: false,
       maxDrawdownAmount: 0,
       peakBalance: runningPeak,
       peakDate: runningPeakDate,
@@ -383,7 +389,11 @@ export function computeMaxDrawdown(equityPoints: EquityPoint[], startingBalance:
 
   return {
     hasDrawdown: true,
-    maxDrawdownPct: round2(maxDDPct),
+    // A percent-of-peak drawdown is only meaningful in [0, 100] — once the balance itself
+    // goes to zero or below, (peak-trough)/peak mathematically exceeds 100%, which reads as
+    // a nonsensical "-197.7%" rather than the "account wiped out" it actually represents.
+    maxDrawdownPct: round2(Math.min(maxDDPct, 100)),
+    accountDepleted: ddTroughBalance <= 0,
     maxDrawdownAmount: maxDDAmount,
     peakBalance: ddPeakBalance,
     peakDate: ddPeakDate,

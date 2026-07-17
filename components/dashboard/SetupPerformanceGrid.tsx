@@ -14,10 +14,10 @@ export default function SetupPerformanceGrid({ data }: { data: SetupPerformance[
               className={`mt-1 truncate font-mono text-base font-semibold ${
                 s.totalPnl >= 0 ? "text-win" : "text-loss"
               }`}
-              title={`${s.totalPnl >= 0 ? "+" : ""}$${s.totalPnl.toFixed(0)}`}
+              title={`${s.totalPnl >= 0 ? "+" : "-"}$${Math.abs(s.totalPnl).toFixed(0)}`}
             >
-              {s.totalPnl >= 0 ? "+" : ""}
-              ${s.totalPnl.toFixed(0)}
+              {s.totalPnl >= 0 ? "+" : "-"}
+              ${Math.abs(s.totalPnl).toFixed(0)}
             </p>
             <p className="text-[11px] text-slate-500">
               {s.count} trades · {s.winRate.toFixed(0)}% win
