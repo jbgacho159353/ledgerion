@@ -67,6 +67,11 @@ export async function getAllTradesForUser(userId: string) {
   return prisma.trade.findMany({ where: { userId }, orderBy: { tradeDate: "asc" } });
 }
 
+/** Total trade count for a user, ignoring any list filters — used for "delete all" confirmation copy. */
+export async function getTradeCountForUser(userId: string) {
+  return prisma.trade.count({ where: { userId } });
+}
+
 export async function getTradesInRange(userId: string, start: Date, end: Date) {
   return prisma.trade.findMany({
     where: { userId, tradeDate: { gte: start, lt: end } },

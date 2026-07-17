@@ -109,3 +109,11 @@ export async function deleteTrade(id: string) {
 
   revalidateAll();
 }
+
+export async function deleteAllTrades() {
+  const userId = await requireUserId();
+
+  await prisma.trade.deleteMany({ where: { userId } });
+
+  revalidateAll();
+}
