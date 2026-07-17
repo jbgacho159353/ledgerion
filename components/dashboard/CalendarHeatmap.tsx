@@ -212,7 +212,9 @@ export default function CalendarHeatmap({ trades }: Props) {
                           <>
                             <span
                               className={`truncate text-[11px] font-bold leading-tight sm:text-sm ${
-                                c.stats.total >= 0 ? "text-win" : "text-loss"
+                                c.stats.total >= 0
+                                  ? "text-win"
+                                  : "text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.5)]"
                               }`}
                             >
                               {formatCompactCurrency(c.stats.total)}
@@ -274,7 +276,11 @@ export default function CalendarHeatmap({ trades }: Props) {
                     </span>
                     <span
                       className={`truncate text-sm font-bold leading-tight ${
-                        !hasTrades ? "text-slate-600" : weekTotal >= 0 ? "text-win" : "text-loss"
+                        !hasTrades
+                          ? "text-slate-600"
+                          : weekTotal >= 0
+                            ? "text-win"
+                            : "text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.5)]"
                       }`}
                     >
                       {hasTrades ? formatCompactCurrency(weekTotal) : "—"}
