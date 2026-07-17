@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import type { SerializedTrade } from "@/lib/serialize";
-import { deleteTrade, deleteAllTrades } from "@/lib/actions/trades";
+import { deleteTrade } from "@/lib/actions/trades";
 import TradeForm from "./TradeForm";
 import EmptyState from "@/components/EmptyState";
 
@@ -34,7 +34,6 @@ interface Props {
   userId: string;
   trades: SerializedTrade[];
   totalCount: number;
-  allTradesCount: number;
   page: number;
   pageSize: number;
   totalPages: number;
@@ -59,7 +58,6 @@ export default function TradesClient({
   userId,
   trades,
   totalCount,
-  allTradesCount,
   page,
   pageSize,
   totalPages,
@@ -81,10 +79,8 @@ export default function TradesClient({
   const [duplicateSeed, setDuplicateSeed] = useState<SerializedTrade | null>(null);
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
-  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
-  const [deleteAllAck, setDeleteAllAck] = useState(false);
-  const [isDeletingAll, setIsDeletingAll] = useState(false);
   const selectAllRef = useRef<HTMLInputElement>(null);
 
   // `trades` is a fresh array from the server on every filter/sort/page change,
@@ -126,10 +122,6 @@ export default function TradesClient({
       else next.add(id);
       return next;
     });
-  }
-
-  function clearSelection() {
-    setSelectedIds(new Set());
   }
 
   const hasFilters = !!(
@@ -184,42 +176,26 @@ export default function TradesClient({
     router.refresh();
   }
 
-  function handleBulkDelete() {
-    const count = selectedIds.size;
-    if (count === 0) return;
-    if (!window.confirm(`Delete ${count} trade${count === 1 ? "" : "s"}? This cannot be undone.`)) return;
+  function openBulkDelete() {
+    if (selectedIds.size === 0) return;
+    setBulkDeleteOpen(true);
+  }
+
+  function closeBulkDelete() {
+    if (isBulkDeleting) return;
+    // Cancel closes the dialog only — selection is left exactly as-is.
+    setBulkDeleteOpen(false);
+  }
+
+  function confirmBulkDelete() {
     const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
     setIsBulkDeleting(true);
     startTransition(async () => {
       await Promise.all(ids.map((id) => deleteTrade(id)));
       setIsBulkDeleting(false);
+      setBulkDeleteOpen(false);
       setSelectedIds(new Set());
-      router.refresh();
-    });
-  }
-
-  function openDeleteAll() {
-    setDeleteAllAck(false);
-    setDeleteAllOpen(true);
-  }
-
-  function closeDeleteAll() {
-    if (isDeletingAll) return;
-    setDeleteAllOpen(false);
-    setDeleteAllAck(false);
-  }
-
-  function handleDeleteAll() {
-    if (!deleteAllAck) return;
-    setIsDeletingAll(true);
-    startTransition(async () => {
-      await deleteAllTrades();
-      setIsDeletingAll(false);
-      setDeleteAllOpen(false);
-      setDeleteAllAck(false);
-      setSelectedIds(new Set());
-      // Clear any active filters/sort/page so the plain "log your first trade" empty state shows.
-      router.push(pathname);
       router.refresh();
     });
   }
@@ -256,42 +232,24 @@ export default function TradesClient({
               : `Showing ${rangeStart}-${rangeEnd} of ${totalCount} trade${totalCount === 1 ? "" : "s"}`}
           </p>
         </div>
-        {selectedIds.size > 0 ? (
-          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-loss/30 bg-loss-soft px-4 py-2">
-            <span className="text-sm font-medium text-white">
-              {selectedIds.size} trade{selectedIds.size === 1 ? "" : "s"} selected
-            </span>
+        <div className="flex flex-wrap gap-2">
+          {selectedIds.size > 0 && (
             <button
-              onClick={handleBulkDelete}
-              disabled={isBulkDeleting}
-              className="inline-flex items-center justify-center rounded-lg border border-loss/40 bg-loss px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-loss/90 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={openBulkDelete}
+              className="inline-flex items-center justify-center rounded-lg border border-loss/40 bg-loss px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-loss/90"
             >
-              {isBulkDeleting ? "Deleting…" : "Delete selected"}
+              Delete selected ({selectedIds.size})
             </button>
-            <button onClick={clearSelection} disabled={isBulkDeleting} className="btn-secondary">
-              Clear selection
+          )}
+          {lastTrade && (
+            <button onClick={openDuplicate} className="btn-secondary">
+              Duplicate last trade
             </button>
-          </div>
-        ) : (
-          <div className="flex gap-2">
-            {allTradesCount > 0 && (
-              <button
-                onClick={openDeleteAll}
-                className="inline-flex items-center justify-center rounded-lg border border-loss/40 px-4 py-2 text-sm font-medium text-loss transition-colors hover:bg-loss-soft"
-              >
-                Delete all
-              </button>
-            )}
-            {lastTrade && (
-              <button onClick={openDuplicate} className="btn-secondary">
-                Duplicate last trade
-              </button>
-            )}
-            <button onClick={openNew} className="btn-primary">
-              + Log trade
-            </button>
-          </div>
-        )}
+          )}
+          <button onClick={openNew} className="btn-primary">
+            + Log trade
+          </button>
+        </div>
       </div>
 
       {(totalCount > 0 || hasFilters) && (
@@ -519,7 +477,7 @@ export default function TradesClient({
         />
       )}
 
-      {deleteAllOpen &&
+      {bulkDeleteOpen &&
         createPortal(
           <div className="modal-overlay">
             <div className="modal-card w-full max-w-md animate-fade-up">
@@ -527,35 +485,25 @@ export default function TradesClient({
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-loss-soft text-base">
                   ⚠️
                 </div>
-                <h2 className="font-sans text-lg font-semibold text-white">Delete ALL trades?</h2>
+                <h2 className="font-sans text-lg font-semibold text-white">Delete selected trades?</h2>
               </div>
 
               <div className="space-y-4 px-6 pb-7 pt-5">
                 <p className="text-sm text-slate-300">
-                  This will permanently remove all {allTradesCount} trade{allTradesCount === 1 ? "" : "s"} and
-                  cannot be undone.
+                  Delete {selectedIds.size} selected trade{selectedIds.size === 1 ? "" : "s"}? This cannot be
+                  undone.
                 </p>
 
-                <label className="flex items-start gap-2 text-sm text-slate-300">
-                  <input
-                    type="checkbox"
-                    className="checkbox-field mt-0.5"
-                    checked={deleteAllAck}
-                    onChange={(e) => setDeleteAllAck(e.target.checked)}
-                  />
-                  I understand this cannot be undone.
-                </label>
-
                 <div className="flex justify-end gap-2 pt-2">
-                  <button onClick={closeDeleteAll} disabled={isDeletingAll} className="btn-secondary">
+                  <button onClick={closeBulkDelete} disabled={isBulkDeleting} className="btn-secondary">
                     Cancel
                   </button>
                   <button
-                    onClick={handleDeleteAll}
-                    disabled={!deleteAllAck || isDeletingAll}
+                    onClick={confirmBulkDelete}
+                    disabled={isBulkDeleting}
                     className="inline-flex items-center justify-center rounded-lg border border-loss/40 bg-loss px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-loss/90 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isDeletingAll ? "Deleting…" : "Delete all trades"}
+                    {isBulkDeleting ? "Deleting…" : "Confirm"}
                   </button>
                 </div>
               </div>

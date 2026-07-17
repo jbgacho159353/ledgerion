@@ -3,7 +3,6 @@ import {
   getTradesForUser,
   getDistinctFilterValues,
   getLastTrade,
-  getTradeCountForUser,
   DEFAULT_TRADES_PAGE_SIZE,
   type TradeFilters,
 } from "@/lib/data/trades";
@@ -52,13 +51,12 @@ export default async function TradesPage({ searchParams }: Props) {
     pageSize: DEFAULT_TRADES_PAGE_SIZE,
   };
 
-  const [tradesPage, filterValues, lastTrade, sessions, setups, allTradesCount] = await Promise.all([
+  const [tradesPage, filterValues, lastTrade, sessions, setups] = await Promise.all([
     getTradesForUser(userId, filters),
     getDistinctFilterValues(userId),
     getLastTrade(userId),
     getSessionsForUser(userId),
     getSetupsForUser(userId),
-    getTradeCountForUser(userId),
   ]);
 
   return (
@@ -66,7 +64,6 @@ export default async function TradesPage({ searchParams }: Props) {
       userId={userId}
       trades={serializeTrades(tradesPage.trades)}
       totalCount={tradesPage.totalCount}
-      allTradesCount={allTradesCount}
       page={tradesPage.page}
       pageSize={tradesPage.pageSize}
       totalPages={tradesPage.totalPages}
